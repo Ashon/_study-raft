@@ -1,0 +1,19 @@
+LOG_LEVEL = 'TRACE'
+
+MYNAME = 'raft-2'
+BIND_IP = '127.0.0.1'
+BIND_PORT = 2469
+
+DATA_DIR = './.data'
+
+REPORT_INTERVAL = 10.0
+
+HEARTBEAT_INTERVAL = 3.0
+VOTE_INTERVAL = 2.0
+LEADER_TIMEOUT = 5.0
+
+PEERS = [
+    'raft-1:127.0.0.1:2468',
+    'raft-2:127.0.0.1:2469',
+    'raft-3:127.0.0.1:2470',
+]

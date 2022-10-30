@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  raft-1:
+    image: raft
+    build:
+      context: .
+    network_mode: host
+    command: python server.py -a 0.0.0.0 -p 2468 -n raft-1
+
+  raft-2:
+    image: raft
+    build:
+      context: .
+    network_mode: host
+    command: python server.py -a 0.0.0.0 -p 2469 -n raft-2
+
+  raft-3:
+    image: raft
+    build:
+      context: .
+    network_mode: host
+    command: python server.py -a 0.0.0.0 -p 2470 -n raft-3
