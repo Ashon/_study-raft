@@ -57,7 +57,7 @@ def get_handler(name, commands):
 
             try:
                 (method, args) = parse_message(commands, message)
-                logger.debug(f'[{name}] {method}, {args}')
+                logger.debug(f'[{name}] {method.__name__=}, {args}')
 
                 return_value = method(*args)
                 logger.trace(

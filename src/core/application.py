@@ -1,26 +1,18 @@
 import asyncio
 import os
-import sys
 import signal
+import sys
 import traceback
 
 import core.logger as logger
-from consensus.raft import run_worker
-from consensus.state import run_reporter
-from consensus.state import heartbeat_from_leader
-from consensus.state import vote_from_candidate
-from transport.tcp import run_server
+from consensus.raft.state_machine import RaftStateMachine
+from consensus.raft.tcp_server import RaftTCPServer
+from consensus.raft.reporter import RaftStateReporter
+from consensus.raft.actor import RaftActor
 
 
-def prepare_service(name: str, log_level: str, log_color: bool, settings):
-    logger.set_logger(name, log_level.upper(), color=log_color)
-
-    # ensure data directory
-    os.makedirs(settings.DATA_DIR, exist_ok=True)
-
-    # TODO: Implement log transactions.
-
-    return True
+def raise_sigint(*args, **kwargs):
+    raise KeyboardInterrupt()
 
 
 async def wrap_generator(generator):
@@ -37,36 +29,53 @@ async def wrap_generator(generator):
         sys.exit(255)
 
 
-def _raise_sigint(*args, **kwargs):
-    raise KeyboardInterrupt()
+def prepare_service(name: str, log_level: str, log_color: bool, datadir: str):
+    logger.set_logger(name, log_level.upper(), color=log_color)
+
+    # ensure data directory
+    os.makedirs(datadir, exist_ok=True)
+
+    # TODO: Implement log transactions.
+
+    return True
 
 
 def start_application(
-        name: str, addr: str, port: int,
-        log_level: str, log_color: bool, settings) -> None:
+        name: str, addr: str, port: int, log_level: str, log_color: bool,
+        data_dir: str, peers: str, leader_timeout: float,
+        election_timeout_jitter: float, vote_interval: float,
+        heartbeat_interval: float, report_interval: float) -> None:
+
+    peers = peers.split(',')
+    peer_ip_port_pairs = [
+        peer_ip_port.split(':', 1)[1] for peer_ip_port in peers
+        if peer_ip_port.split(':')[0] != name
+    ]
 
     # prepare service
-    prepare_service(name, log_level, log_color, settings)
+    prepare_service(name, log_level, log_color, data_dir)
 
     loop = asyncio.new_event_loop()
+    queue = asyncio.Queue()
+
+    context = RaftStateMachine(name=name, peers=peer_ip_port_pairs)
+
+    tcp_server = RaftTCPServer(
+        context=context, queue=queue, addr=addr, port=port)
+
+    reporter = RaftStateReporter(
+        context=context, report_interval=report_interval)
+
+    actor = RaftActor(
+        context=context, queue=queue, leader_timeout=leader_timeout,
+        election_timeout_jitter=election_timeout_jitter,
+        vote_interval=vote_interval, heartbeat_interval=heartbeat_interval
+    )
 
     generators = [
-        run_server(
-            name='consensus', addr=addr, port=port,
-            commands={
-                'heartbeat': (heartbeat_from_leader, 1),
-                'vote': (vote_from_candidate, 1),
-            }
-        ),
-        run_worker(
-            name=name, peers=settings.PEERS,
-            leader_timeout=settings.LEADER_TIMEOUT,
-            vote_interval=settings.VOTE_INTERVAL,
-            heartbeat_interval=settings.HEARTBEAT_INTERVAL
-        ),
-        run_reporter(
-            report_interval=settings.REPORT_INTERVAL
-        )
+        tcp_server.create_server(),
+        reporter.create_reporter(),
+        actor.create_worker()
     ]
 
     for generator in generators:
@@ -74,8 +83,8 @@ def start_application(
             wrap_generator(generator),
             name=generator.__name__)
 
-    signal.signal(signal.SIGINT, _raise_sigint)
-    signal.signal(signal.SIGTERM, _raise_sigint)
+    signal.signal(signal.SIGINT, raise_sigint)
+    signal.signal(signal.SIGTERM, raise_sigint)
 
     try:
         logger.trace(f'run event loop [{loop=}]')

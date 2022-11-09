@@ -33,7 +33,9 @@ async def broadcall(ip_ports, message: str):
 
     responses = []
 
+    print(ip_ports)
     for ip_port in ip_ports:
+
         ip, port = ip_port.split(':')
         logger.trace(f'dialup {ip}:{port}')
 
