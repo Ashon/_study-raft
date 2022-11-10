@@ -21,7 +21,7 @@ RESET = '\x1b[0m'
 
 
 class ColorFormatter(logging.Formatter):
-    def __init__(self, fmt):
+    def __init__(self, fmt: str) -> None:
         super().__init__()
         self.fmt = fmt
         self.FORMATS = {
@@ -33,15 +33,16 @@ class ColorFormatter(logging.Formatter):
             logging.CRITICAL: f'{BOLD_RED}{self.fmt}{RESET}'
         }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
 
-def set_logger(name, log_level, color: bool):
+def set_logger(name: str, log_level: str, color: bool) -> None:
     global _LOG
 
+    formatter: logging.Formatter
     if color:
         formatter = ColorFormatter(DEFAULT_LOG_FORMAT)
     else:

@@ -1,13 +1,17 @@
 import asyncio
 from asyncio.streams import StreamReader
 from asyncio.streams import StreamWriter
+from typing import Callable
 
 import core.logger as logger
-import transport.messages as messages
+
+
+CMD_OK = '+OK'
+CMD_ERR = '-ERR'
 
 
 async def run_server(name: str, addr: str, port: int, commands: dict) -> None:
-    logger.info(f'[{name}] start tcp server')
+    logger.info(f'[{name=}] start tcp server')
 
     # create TCP server
     handler = get_handler(name=name, commands=commands)
@@ -16,33 +20,45 @@ async def run_server(name: str, addr: str, port: int, commands: dict) -> None:
     try:
         async with server:
             (_ip, _port) = server.sockets[0].getsockname()
-            logger.info(f'[{name}] server listen at {_ip}:{_port}')
+            logger.info(f'[{name=}] server listen at {_ip}:{_port}')
             await server.serve_forever()
 
     except asyncio.exceptions.CancelledError:
-        logger.trace(f'[{name}] close server')
+        logger.trace(f'[{name=}] close server')
         server.close()
 
-    logger.info(f'[{name}] server closed')
+    logger.info(f'[{name=}] server closed')
 
 
-def parse_message(commands, message: str):
+def parse_message(commands: dict, message: str) -> tuple:
     (cmd, raw_args) = message.split('\n')[0].split(maxsplit=1)
 
-    method, length = commands.get(cmd)
+    if method_arg_length := commands.get(cmd):
+        method, length = method_arg_length
+
     args = raw_args.split(maxsplit=length)
 
     return method, args
 
 
-async def close_connection(writer: StreamWriter):
+async def close_connection(writer: StreamWriter) -> None:
     await writer.drain()
 
     writer.close()
 
 
-def get_handler(name, commands):
-    async def _handle_request(reader: StreamReader, writer: StreamWriter):
+def response_ok(message: str) -> bytes:
+    return f'{CMD_OK}:{message}\r\n'.encode()
+
+
+def response_err(message: str) -> bytes:
+    return f'{CMD_ERR}:{message}\r\n'.encode()
+
+
+def get_handler(name: str, commands: dict) -> Callable:
+    async def _handle_request(
+            reader: StreamReader, writer: StreamWriter) -> None:
+
         (ip, port) = writer.get_extra_info('peername')
         logger.trace(f'[{name}] client {ip}:{port} is connected')
 
@@ -59,16 +75,14 @@ def get_handler(name, commands):
                 (method, args) = parse_message(commands, message)
                 logger.debug(f'[{name}] {method.__name__=}, {args}')
 
-                return_value = method(*args)
+                response = method(*args)
                 logger.trace(
                     f'[{name}] msg from client {ip}:{port} : {message!r}')
 
             except Exception as e:
-                return_value = messages.CMD_ERR
+                response = response_err('UNKNOWN_ERROR')
                 logger.error(
                     f'[{name}] [{ip}:{port}] error occurred. [{message=}] {e}')
-
-            response = f'{return_value}\r\n'.encode()
 
             logger.trace(
                 f'[{name}] send to client {ip}:{port} message: {response!r}')

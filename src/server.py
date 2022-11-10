@@ -43,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-t', '--leader-timeout', default=DEFAULT_LEADER_TIMEOUT,
         help=(
-            'default leader heartbeat timeout'
+            'leader heartbeat timeout'
             f' (default = {DEFAULT_LEADER_TIMEOUT})'))
     parser.add_argument(
         '-e', '--election-timeout-jitter',
@@ -57,16 +57,16 @@ if __name__ == '__main__':
     parser.add_argument(
         '-b', '--heartbeat-interval', default=DEFAULT_HEARTBEAT_INTERVAL,
         help=(
-            'default heartbeat interval'
+            'heartbeat interval'
             f' (default = {DEFAULT_HEARTBEAT_INTERVAL})'))
     parser.add_argument(
         '-r', '--report-interval', default=DEFAULT_REPORT_INTERVAL,
         help=(
-            'default state report interval'
+            'state report interval'
             f' (default = {DEFAULT_REPORT_INTERVAL})'))
     parser.add_argument(
         '-m', '--members', default=DEFAULT_PEERS, help=(
-            'default members (comma separated \'name:addr:port\' values.)'
+            'raft members (comma separated \'name:addr:port\' values.)'
             f' (default = {DEFAULT_PEERS})'
         )
     )
@@ -84,8 +84,7 @@ if __name__ == '__main__':
         name=args.name, addr=args.addr, port=args.port, data_dir=args.datadir,
         log_level=args.loglevel, log_color=not args.no_color,
 
-        peers=args.members,
-        leader_timeout=args.leader_timeout,
+        peers=args.members, leader_timeout=args.leader_timeout,
         election_timeout_jitter=args.election_timeout_jitter,
         vote_interval=args.vote_interval,
         heartbeat_interval=args.heartbeat_interval,

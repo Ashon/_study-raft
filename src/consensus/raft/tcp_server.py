@@ -1,15 +1,14 @@
 import asyncio
+from typing import Any
 
 from core import logger
 from consensus.raft.state_machine import RaftStateMachine
 from consensus.raft.state_machine import STATE_FOLLOWER
 from consensus.raft.state_machine import STATE_CANDIDATE
 from transport.tcp import run_server
+from transport.tcp import response_ok
+from transport.tcp import response_err
 
-
-CMD_OK = '+OK'
-CMD_ERR = '-ERR'
-CMD_DATAEMPTY = '-EMPTY'
 
 ERR_NOT_FOLLOWER = 'NOT_FOLLOWER'
 ERR_LOWER_TERM = 'TERM_IS_LOWER'
@@ -29,17 +28,18 @@ class RaftTCPServer(object):
         self.addr = addr
         self.port = port
 
-    def heartbeat_from_leader(self, term, leader_name) -> str:
+    def heartbeat_from_leader(self, term: int, leader_name: str) -> bytes:
         """as a follower, ensure mystate is follower
         """
         logger.trace(f'got heartbeat message: {leader_name=}')
+        term = int(term)
+        response: bytes
 
         if self.context._state not in (STATE_FOLLOWER, STATE_CANDIDATE):
-            return f'{CMD_ERR}:{ERR_NOT_FOLLOWER}'
+            response = response_err(ERR_NOT_FOLLOWER)
 
-        term = int(term)
         if self.context._term > term:
-            return f'{CMD_ERR}:{ERR_LOWER_TERM}'
+            response = response_err(ERR_LOWER_TERM)
 
         self.context.demote_to_follower()
         if self.context._leader != leader_name:
@@ -48,9 +48,11 @@ class RaftTCPServer(object):
         logger.trace('emit message to leader waiter queue')
         self.queue.put_nowait(leader_name)
 
-        return f'{CMD_OK}:{self.context._name}'
+        response = response_ok(self.context._name)
 
-    def vote_from_candidate(self, term, candidate_name):
+        return response
+
+    def vote_from_candidate(self, term: int, candidate_name: str) -> bytes:
         """as a follower, response vote message to candidate.
 
         if leader is not elected, accept voting from candidate.
@@ -58,17 +60,20 @@ class RaftTCPServer(object):
         logger.trace(f'got vote request: {candidate_name=}')
 
         term = int(term)
+        response: bytes
         if self.context._term > term:
-            return f'{CMD_ERR}:{ERR_LOWER_TERM}'
+            response = response_err(ERR_LOWER_TERM)
 
         if self.context._state != STATE_FOLLOWER:
-            return f'{CMD_ERR}:{ERR_NOT_FOLLOWER}'
+            response = response_err(ERR_NOT_FOLLOWER)
 
         self.context.set_leader(term, candidate_name)
 
-        return f'{CMD_OK}:{self.context._name}'
+        response = response_ok(self.context._name)
 
-    def create_server(self):
+        return response
+
+    def create_server(self) -> Any:
         return run_server(
             name='consensus', addr=self.addr, port=self.port,
             commands={

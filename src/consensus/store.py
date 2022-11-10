@@ -1,3 +1,4 @@
+"""
 import transport.messages as messages
 
 
@@ -34,3 +35,4 @@ def del_value(key):
     del _STORE[key]
 
     return messages.CMD_OK
+"""

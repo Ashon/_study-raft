@@ -1,5 +1,7 @@
 import asyncio
 import random
+from typing import Any
+from typing import List
 
 import core.logger as logger
 from transport.transmission import broadcall
@@ -13,7 +15,7 @@ class LeaderTimeoutError(RuntimeError):
     pass
 
 
-async def timeout(task: asyncio.Task, duration: float):
+async def timeout(task: asyncio.Task, duration: float) -> None:
     """simple task timeout helper
 
     no use 'asyncio.wait_for' for catching CancelledError.
@@ -43,7 +45,7 @@ class RaftActor(object):
         self.vote_interval = vote_interval
         self.heartbeat_interval = heartbeat_interval
 
-    async def _wait_for_leader(self, timeout_seconds):
+    async def _wait_for_leader(self, timeout_seconds: float) -> str:
         try:
             logger.trace(
                 f'{self.context.log_header} wait message from waiter queue.')
@@ -54,7 +56,7 @@ class RaftActor(object):
                 timeout(wait_for_leader, timeout_seconds),
                 name='timer')
 
-            message = await wait_for_leader
+            message = await wait_for_leader  # type: str
             logger.debug(
                 f'{self.context.log_header} heartbeat received: {message!r}')
 
@@ -70,7 +72,7 @@ class RaftActor(object):
 
         return message
 
-    async def _act_as_follower(self):
+    async def _act_as_follower(self) -> None:
         """Act as a follower
 
         follower only respond to leader healthcheck.
@@ -109,7 +111,7 @@ class RaftActor(object):
                 logger.warn(f'{self.context.log_header} election timeout.')
                 self.context.promote_to_candidate()
 
-    async def _act_as_candidate(self):
+    async def _act_as_candidate(self) -> None:
         logger.info(
             f'{self.context.log_header} run as {STATE_CANDIDATE} state')
 
@@ -135,27 +137,28 @@ class RaftActor(object):
 
             await asyncio.sleep(self.vote_interval)
 
-    async def _act_as_leader(self):
+    async def _act_as_leader(self) -> None:
         logger.info(f'{self.context.log_header} run as {STATE_LEADER} state')
 
         while self.context._state == STATE_LEADER:
             await self.send_heartbeats_to_peers()
             await asyncio.sleep(self.heartbeat_interval)
 
-    async def send_heartbeats_to_peers(self):
+    async def send_heartbeats_to_peers(self) -> List[str]:
         logger.debug((
             f'{self.context.log_header} sending heartbeats.'
             f' [{self.heartbeat_interval=}s]'
         ))
         responses = await broadcall(
             self.context._peers,
-            f'heartbeat {self.context._term} {self.context._name}')
+            f'heartbeat {self.context._term} {self.context._name}'
+        )  # type: List[str]
         logger.debug(f'{self.context.log_header} [{responses=}]')
 
         return responses
 
-    def create_worker(self):
-        async def run_worker():
+    def create_worker(self) -> Any:
+        async def run_worker() -> None:
             logger.info(f'{self.context.log_header} start raft worker')
 
             while True:

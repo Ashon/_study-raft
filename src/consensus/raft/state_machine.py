@@ -1,8 +1,9 @@
 from typing import Any
+from typing import Callable
 from typing import List
 from typing import Optional
 
-from core import logger
+import core.logger as logger
 
 
 STATE_FOLLOWER = 'FOLLOWER'
@@ -17,13 +18,13 @@ class StatePromotionError(RuntimeError):
 class StateMachine(object):
     _state: str
 
-    def __init__(self, state):
+    def __init__(self, state: str) -> None:
         self._state = state
 
 
-def before_states(states: List[str]):
-    def _decorator(fn):
-        def _wrap(self: StateMachine, *args, **kwargs):
+def before_states(states: List[str]) -> Callable:
+    def _decorator(fn: Callable) -> Callable:
+        def _wrap(self: StateMachine, *args: tuple, **kwargs: dict) -> Any:
             logger.trace(
                 f'before_states {fn.__name__=}, {self._state=}, {states=}')
 
@@ -60,25 +61,25 @@ class RaftStateMachine(StateMachine):
         super().__setattr__(__name, __value)
 
     @property
-    def log_header(self):
+    def log_header(self) -> str:
         return f'[{self._term} {self._state} {self._leader}]'
 
     @before_states([STATE_FOLLOWER])
-    def promote_to_candidate(self):
+    def promote_to_candidate(self) -> None:
         self._term += 1
         self._leader = None
         self._state = STATE_CANDIDATE
 
     @before_states([STATE_CANDIDATE])
-    def promote_to_leader(self):
+    def promote_to_leader(self) -> None:
         self._leader = None
         self._state = STATE_LEADER
 
     @before_states([STATE_FOLLOWER, STATE_CANDIDATE])
-    def demote_to_follower(self):
+    def demote_to_follower(self) -> None:
         self._state = STATE_FOLLOWER
 
-    def set_leader(self, term, leader_name):
+    def set_leader(self, term: int, leader_name: str) -> None:
         logger.info(f'new leader elected to [{term=}] [{leader_name=}]')
         self._term = term
         self._leader = leader_name

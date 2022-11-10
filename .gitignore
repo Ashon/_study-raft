@@ -1,4 +1,6 @@
 .vscode
 .data
+.coverage
+coverage.xml
 .python-version
 *.py[oic]

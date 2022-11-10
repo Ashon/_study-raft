@@ -1,9 +1,10 @@
 import asyncio
+from typing import List
 
 import core.logger as logger
 
 
-async def call(ip: str, port: int, message: str):
+async def call(ip: str, port: int, message: str) -> str:
     logger.trace(f'[{ip}:{port}] open connection')
     reader, writer = await asyncio.open_connection(ip, port)
     logger.trace(f'[{ip}:{port}] connection opened')
@@ -25,7 +26,7 @@ async def call(ip: str, port: int, message: str):
     return data.decode()
 
 
-async def broadcall(ip_ports, message: str):
+async def broadcall(ip_ports: List[str], message: str) -> List[str]:
     """send & receive response from ip port list
 
     not broadcast, because this waits response from dst.
@@ -33,7 +34,6 @@ async def broadcall(ip_ports, message: str):
 
     responses = []
 
-    print(ip_ports)
     for ip_port in ip_ports:
 
         ip, port = ip_port.split(':')

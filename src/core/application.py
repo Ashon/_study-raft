@@ -3,6 +3,9 @@ import os
 import signal
 import sys
 import traceback
+from typing import Awaitable
+from typing import Optional
+from types import FrameType
 
 import core.logger as logger
 from consensus.raft.state_machine import RaftStateMachine
@@ -11,16 +14,16 @@ from consensus.raft.reporter import RaftStateReporter
 from consensus.raft.actor import RaftActor
 
 
-def raise_sigint(*args, **kwargs):
+def raise_sigint(signum: int, frame: Optional[FrameType]) -> None:
     raise KeyboardInterrupt()
 
 
-async def wrap_generator(generator):
+async def wrap_awaitable(awaitable: Awaitable) -> None:
     """Wraps async generator for failfast.
     """
 
     try:
-        await generator
+        await awaitable
 
     except Exception as e:
         logger.critical('critical error occurred')
@@ -29,7 +32,9 @@ async def wrap_generator(generator):
         sys.exit(255)
 
 
-def prepare_service(name: str, log_level: str, log_color: bool, datadir: str):
+def prepare_service(name: str, log_level: str,
+                    log_color: bool, datadir: str) -> bool:
+
     logger.set_logger(name, log_level.upper(), color=log_color)
 
     # ensure data directory
@@ -46,9 +51,9 @@ def start_application(
         election_timeout_jitter: float, vote_interval: float,
         heartbeat_interval: float, report_interval: float) -> None:
 
-    peers = peers.split(',')
+    peer_list = peers.split(',')
     peer_ip_port_pairs = [
-        peer_ip_port.split(':', 1)[1] for peer_ip_port in peers
+        peer_ip_port.split(':', 1)[1] for peer_ip_port in peer_list
         if peer_ip_port.split(':')[0] != name
     ]
 
@@ -56,7 +61,7 @@ def start_application(
     prepare_service(name, log_level, log_color, data_dir)
 
     loop = asyncio.new_event_loop()
-    queue = asyncio.Queue()
+    queue = asyncio.Queue()  # type: asyncio.Queue
 
     context = RaftStateMachine(name=name, peers=peer_ip_port_pairs)
 
@@ -80,7 +85,7 @@ def start_application(
 
     for generator in generators:
         loop.create_task(
-            wrap_generator(generator),
+            wrap_awaitable(generator),
             name=generator.__name__)
 
     signal.signal(signal.SIGINT, raise_sigint)
