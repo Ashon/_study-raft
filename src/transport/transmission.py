@@ -26,10 +26,8 @@ async def call(ip: str, port: int, message: str) -> str:
     return data.decode()
 
 
-async def broadcall(ip_ports: List[str], message: str) -> List[str]:
+async def broadcast(ip_ports: List[str], message: str) -> List[str]:
     """send & receive response from ip port list
-
-    not broadcast, because this waits response from dst.
     """
 
     responses = []

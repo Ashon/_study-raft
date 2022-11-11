@@ -4,7 +4,7 @@ from typing import Any
 from typing import List
 
 import core.logger as logger
-from transport.transmission import broadcall
+from transport.transmission import broadcast
 from consensus.raft.state_machine import RaftStateMachine
 from consensus.raft.state_machine import STATE_FOLLOWER
 from consensus.raft.state_machine import STATE_CANDIDATE
@@ -26,7 +26,7 @@ async def timeout(task: asyncio.Task, duration: float) -> None:
 
 class RaftActor(object):
     context: RaftStateMachine
-    queue: asyncio.Queue
+    event: asyncio.Event
 
     leader_timeout: float
     election_timeout_jitter: float
@@ -34,31 +34,31 @@ class RaftActor(object):
     heartbeat_interval: float
 
     def __init__(
-            self, context: RaftStateMachine, queue: asyncio.Queue,
+            self, context: RaftStateMachine, event: asyncio.Event,
             leader_timeout: float, election_timeout_jitter: float,
             vote_interval: float, heartbeat_interval: float):
 
         self.context = context
-        self.queue = queue
+        self.event = event
         self.leader_timeout = leader_timeout
         self.election_timeout_jitter = election_timeout_jitter
         self.vote_interval = vote_interval
         self.heartbeat_interval = heartbeat_interval
 
-    async def _wait_for_leader(self, timeout_seconds: float) -> str:
+    async def _wait_for_leader(self, timeout_seconds: float) -> bool:
         try:
             logger.trace(
-                f'{self.context.log_header} wait message from waiter queue.')
+                f'{self.context.log_header} wait leader heartbeat.')
             wait_for_leader = asyncio.create_task(
-                self.queue.get(), name='wait_for_leader')
+                self.event.wait(), name='wait_for_leader')
 
             timer = asyncio.create_task(
                 timeout(wait_for_leader, timeout_seconds),
                 name='timer')
 
-            message = await wait_for_leader  # type: str
-            logger.debug(
-                f'{self.context.log_header} heartbeat received: {message!r}')
+            await wait_for_leader  # type: str
+            self.event.clear()
+            logger.debug(f'{self.context.log_header} heartbeat received.')
 
         except asyncio.exceptions.CancelledError:
             if timer.cancelled():
@@ -70,7 +70,7 @@ class RaftActor(object):
 
             raise LeaderTimeoutError()
 
-        return message
+        return True
 
     async def _act_as_follower(self) -> None:
         """Act as a follower
@@ -87,11 +87,8 @@ class RaftActor(object):
             ))
 
             try:
-                message = await self._wait_for_leader(self.leader_timeout)
-                logger.debug((
-                    f'{self.context.log_header}'
-                    f' heartbeat received: {message!r}'
-                ))
+                await self._wait_for_leader(self.leader_timeout)
+                logger.debug(f'{self.context.log_header} heartbeat received.')
                 continue
 
             except LeaderTimeoutError:
@@ -104,12 +101,12 @@ class RaftActor(object):
                     f'{self.context.log_header} wait for election timeout.',
                     f' [{election_timeout=}]'
                 ))
-                message = await self._wait_for_leader(election_timeout)
+                await self._wait_for_leader(election_timeout)
                 continue
 
             except LeaderTimeoutError:
                 logger.warn(f'{self.context.log_header} election timeout.')
-                self.context.promote_to_candidate()
+                await self.context.promote_to_candidate()
 
     async def _act_as_candidate(self) -> None:
         logger.info(
@@ -120,14 +117,14 @@ class RaftActor(object):
                 f'{self.context.log_header} sending vote requests.'
                 f' [{self.vote_interval=}s]'
             ))
-            messages = await broadcall(
+            messages = await broadcast(
                 self.context._peers,
                 f'vote {self.context._term} {self.context._name}'
             )
             votes = len([m for m in messages if m.startswith('+')])
 
             if votes > 0:
-                self.context.promote_to_leader()
+                await self.context.promote_to_leader()
                 # exit candidate loop
                 break
 
@@ -147,7 +144,7 @@ class RaftActor(object):
             f'{self.context.log_header} sending heartbeats.'
             f' [{self.heartbeat_interval=}s]'
         ))
-        responses = await broadcall(
+        responses = await broadcast(
             self.context._peers,
             f'heartbeat {self.context._term} {self.context._name}'
         )  # type: List[str]

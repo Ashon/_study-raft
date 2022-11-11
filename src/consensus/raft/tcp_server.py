@@ -3,8 +3,8 @@ from typing import Any
 from typing import Callable
 
 from core import logger
+from consensus.raft.base import WrongStateConditionError
 from consensus.raft.state_machine import RaftStateMachine
-from consensus.raft.state_machine import WrongStateConditionError
 from consensus.raft.state_machine import TermIsLowerThanCurrent
 from transport.tcp import run_server
 from transport.tcp import response_ok
@@ -17,19 +17,20 @@ ERR_LOWER_TERM = 'TERM_IS_LOWER'
 
 class RaftTCPServer(object):
     context: RaftStateMachine
-    queue: asyncio.Queue
+    event: asyncio.Event
 
     addr: str
     port: int
 
     def __init__(self, context: RaftStateMachine,
-                 queue: asyncio.Queue, addr: str, port: int):
+                 event: asyncio.Event, addr: str, port: int):
         self.context = context
-        self.queue = queue
+        self.event = event
         self.addr = addr
         self.port = port
 
-    def heartbeat_from_leader(self, term: int, leader_name: str) -> bytes:
+    async def handle_heartbeat(
+            self, term: int, leader_name: str) -> bytes:
         """as a follower, ensure mystate is follower
         """
         logger.trace(f'tcp: handle heartbeat message: {term=} {leader_name=}')
@@ -39,7 +40,8 @@ class RaftTCPServer(object):
         handler = response_err  # type: Callable
 
         try:
-            message = self.context.heartbeat_from_leader(term, leader_name)
+            message = await self.context.heartbeat_from_leader(
+                term, leader_name)
             handler = response_ok
 
         except WrongStateConditionError:
@@ -48,14 +50,15 @@ class RaftTCPServer(object):
         except TermIsLowerThanCurrent:
             message = ERR_LOWER_TERM
 
-        logger.trace('emit message to leader waiter queue')
-        self.queue.put_nowait(message)
+        logger.trace('emit event')
+        self.event.set()
 
         response = handler(message)  # type: bytes
 
         return response
 
-    def vote_from_candidate(self, term: int, candidate_name: str) -> bytes:
+    async def handle_vote(
+            self, term: int, candidate_name: str) -> bytes:
         """as a follower, response vote message to candidate.
 
         if leader is not elected, accept voting from candidate.
@@ -67,7 +70,8 @@ class RaftTCPServer(object):
         handler = response_err  # type: Callable
 
         try:
-            message = self.context.vote_from_candidate(term, candidate_name)
+            message = await self.context.vote_from_candidate(
+                term, candidate_name)
             handler = response_ok
 
         except WrongStateConditionError:
@@ -84,7 +88,7 @@ class RaftTCPServer(object):
         return run_server(
             name='consensus', addr=self.addr, port=self.port,
             commands={
-                'heartbeat': (self.heartbeat_from_leader, 2),
-                'vote': (self.vote_from_candidate, 2),
+                'heartbeat': (self.handle_heartbeat, 2),
+                'vote': (self.handle_vote, 2),
             }
         )

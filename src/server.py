@@ -6,16 +6,16 @@ import uvloop
 from core.application import start_application
 
 
+DEFAULT_NAME = 'raft-1'
 DEFAULT_ADDR = '127.0.0.1'
 DEFAULT_PORT = 2468
-DEFAULT_NAME = 'raft-1'
 DEFAULT_LOGLEVEL = 'info'
 DEFAULT_DATADIR = './.data'
 
-DEFAULT_LEADER_TIMEOUT = 5.0
-DEFAULT_ELECTION_TIMEOUT_JITTER = 3.0
-DEFAULT_VOTE_INTERVAL = 2.0
-DEFAULT_HEARTBEAT_INTERVAL = 3.0
+DEFAULT_LEADER_TIMEOUT = 3.0
+DEFAULT_ELECTION_TIMEOUT_JITTER = .3
+DEFAULT_VOTE_INTERVAL = 3.0
+DEFAULT_HEARTBEAT_INTERVAL = 2.0
 
 DEFAULT_REPORT_INTERVAL = 10.0
 DEFAULT_PEERS = (
@@ -42,34 +42,28 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '-t', '--leader-timeout', default=DEFAULT_LEADER_TIMEOUT,
-        help=(
-            'leader heartbeat timeout'
-            f' (default = {DEFAULT_LEADER_TIMEOUT})'))
+        help=('leader heartbeat timeout'
+              f' (default = {DEFAULT_LEADER_TIMEOUT})'))
     parser.add_argument(
         '-e', '--election-timeout-jitter',
         default=DEFAULT_ELECTION_TIMEOUT_JITTER,
-        help=(
-            'election timeout jitter'
-            f' (default = {DEFAULT_ELECTION_TIMEOUT_JITTER})'))
+        help=('election timeout jitter'
+              f' (default = {DEFAULT_ELECTION_TIMEOUT_JITTER})'))
     parser.add_argument(
         '-i', '--vote-interval', default=DEFAULT_VOTE_INTERVAL,
         help=f'default vote interval (default = {DEFAULT_VOTE_INTERVAL})')
     parser.add_argument(
         '-b', '--heartbeat-interval', default=DEFAULT_HEARTBEAT_INTERVAL,
-        help=(
-            'heartbeat interval'
-            f' (default = {DEFAULT_HEARTBEAT_INTERVAL})'))
+        help=('heartbeat interval'
+              f' (default = {DEFAULT_HEARTBEAT_INTERVAL})'))
     parser.add_argument(
         '-r', '--report-interval', default=DEFAULT_REPORT_INTERVAL,
-        help=(
-            'state report interval'
-            f' (default = {DEFAULT_REPORT_INTERVAL})'))
+        help=('state report interval'
+              f' (default = {DEFAULT_REPORT_INTERVAL})'))
     parser.add_argument(
-        '-m', '--members', default=DEFAULT_PEERS, help=(
-            'raft members (comma separated \'name:addr:port\' values.)'
-            f' (default = {DEFAULT_PEERS})'
-        )
-    )
+        '-m', '--members', default=DEFAULT_PEERS,
+        help=('raft members (comma separated \'name:addr:port\' values.)'
+              f' (default = {DEFAULT_PEERS})'))
     parser.add_argument(
         '--no-color', action='store_true', help='no colored log')
     parser.add_argument(

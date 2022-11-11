@@ -75,7 +75,7 @@ def get_handler(name: str, commands: dict) -> Callable:
                 (method, args) = parse_message(commands, message)
                 logger.debug(f'[{name}] {method.__name__=}, {args}')
 
-                response = method(*args)
+                response = await method(*args)
                 logger.trace(
                     f'[{name}] msg from client {ip}:{port} : {message!r}')
 

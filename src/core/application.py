@@ -61,15 +61,15 @@ def start_application(
     prepare_service(name, log_level, log_color, data_dir)
 
     loop = asyncio.new_event_loop()
-    queue = asyncio.Queue()  # type: asyncio.Queue
+    event = asyncio.Event()  # type: asyncio.Event
 
     context = RaftStateMachine(name=name, peers=peer_ip_port_pairs)
 
     tcp_server = RaftTCPServer(
-        context=context, queue=queue, addr=addr, port=port)
+        context=context, event=event, addr=addr, port=port)
 
     actor = RaftActor(
-        context=context, queue=queue, leader_timeout=leader_timeout,
+        context=context, event=event, leader_timeout=leader_timeout,
         election_timeout_jitter=election_timeout_jitter,
         vote_interval=vote_interval, heartbeat_interval=heartbeat_interval
     )

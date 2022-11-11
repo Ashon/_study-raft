@@ -23,8 +23,10 @@ class RaftStateReporter(object):
                 try:
                     logger.info((
                         'report state'
-                        f' [{self.context._name=}] [{self.context._term=}]'
-                        f' [{self.context._state=}] [{self.context._leader=}]'
+                        f' [name={self.context._name}]'
+                        f' [term={self.context._term}]'
+                        f' [state={self.context._state}]'
+                        f' [leader={self.context._leader}]'
                     ))
 
                     await asyncio.sleep(self.report_interval)
