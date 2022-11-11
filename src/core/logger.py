@@ -1,16 +1,24 @@
 import logging
+import typing
 from functools import partial
+from typing import Any
+from typing import Optional
+
+
+if typing.TYPE_CHECKING:
+    from consensus.raft.state_machine import RaftStateMachine
 
 
 DEFAULT_LOG_FORMAT = (
     '[%(asctime)s.%(msecs)03d] [%(levelname)8s] [%(name)s %(process)s] '
-    '[%(filename)s:%(lineno)d %(funcName)s] %(message)s'
+    '[%(filename)s:%(lineno)d %(funcName)s] [%(context)s] %(message)s'
 )
 DEFAULT_LOG_DATE_FORMAT = '%Y-%m-%d:%H:%M:%S'
 
 TRACE = 5
 logging.addLevelName(TRACE, 'TRACE')
 _LOG = logging.getLogger()
+_LOG_CONTEXT: Optional[Any]
 
 GRAY = '\x1b[38;5;240m'
 BLUE = '\x1b[38;5;39m'
@@ -39,8 +47,24 @@ class ColorFormatter(logging.Formatter):
         return formatter.format(record)
 
 
+class ContextFilter(logging.Filter):
+    context: 'RaftStateMachine'
+
+    def __init__(self, context: Optional['RaftStateMachine']) -> None:
+        super(ContextFilter, self).__init__()
+        self.context = context
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if self.context:
+            record.context = self.context.log_header
+        else:
+            record.context = '-'
+        return True
+
+
 def set_logger(name: str, log_level: str, color: bool) -> None:
     global _LOG
+    global _LOG_CONTEXT
 
     formatter: logging.Formatter
     if color:
@@ -55,8 +79,15 @@ def set_logger(name: str, log_level: str, color: bool) -> None:
     logger.name = name
     logger.setLevel(log_level)
     logger.addHandler(handler)
+    _LOG_CONTEXT = ContextFilter(None)
 
+    _LOG.addFilter(_LOG_CONTEXT)
     _LOG = logger
+
+
+def set_context(context: object) -> None:
+    global _LOG_CONTEXT
+    _LOG_CONTEXT.context = context  # type: ignore
 
 
 trace = partial(_LOG.log, TRACE)

@@ -46,7 +46,7 @@ def prepare_service(name: str, log_level: str,
 
 
 class Raft(object):
-    _loop: asyncio.BaseEventLoop
+    _loop: asyncio.AbstractEventLoop
     _event: asyncio.Event
 
     _context: RaftStateMachine
@@ -87,6 +87,8 @@ class Raft(object):
         self._reporter = RaftStateReporter(
             context=self._context, report_interval=report_interval)
 
+        logger.set_context(self._context)
+
         # prepare awaitable loops, and load to eventloop
         awaitables = [
             self._actor.create_worker(),
@@ -99,7 +101,7 @@ class Raft(object):
                 wrap_awaitable(awaitable),
                 name=awaitable.__name__)
 
-    def run(self):
+    def run(self) -> None:
         signal.signal(signal.SIGINT, raise_sigint)
         signal.signal(signal.SIGTERM, raise_sigint)
 

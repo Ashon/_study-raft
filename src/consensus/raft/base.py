@@ -18,7 +18,7 @@ class StateMachine(object):
         self._lock = asyncio.Lock()
 
     @staticmethod
-    def synchronized(fn) -> Callable:
+    def synchronized(fn: Callable) -> Callable:
         """Wraps function with lock for synchronized transaction
         """
 

@@ -21,7 +21,7 @@ class RaftStateReporter(object):
 
             while True:
                 try:
-                    logger.info(f'report state {self._context}')
+                    logger.info('report state')
 
                     await asyncio.sleep(self._report_interval)
 
