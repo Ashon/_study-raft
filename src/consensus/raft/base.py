@@ -38,7 +38,8 @@ def before_states(states: List[str]) -> Callable:
         def _wrap(self: StateMachine, *args: tuple, **kwargs: dict) -> Any:
             logger.trace((
                 f'before_states [fn={fn.__name__}]'
-                f' [state={self._state}] [desired={states}]'))
+                f' [state={self._state}] [desired={states}]'
+            ))
 
             if self._state not in states:
                 raise WrongStateConditionError()

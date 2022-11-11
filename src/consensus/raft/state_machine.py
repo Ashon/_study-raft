@@ -44,9 +44,11 @@ class RaftStateMachine(StateMachine):
         logger.trace(f'set {__name} as {__value!r}')
         super().__setattr__(__name, __value)
 
-    @property
-    def log_header(self) -> str:
-        return f'[{self._term} {self._state} {self._leader}]'
+    def __repr__(self) -> str:
+        return (
+            f'<RaftStateMachine name={self._name} term={self._term}'
+            f' state={self._state} leader={self._leader}>'
+        )
 
     @threadsafe
     @before_states([STATE_FOLLOWER])

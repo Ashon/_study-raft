@@ -48,7 +48,7 @@ class RaftActor(object):
     async def _wait_for_leader(self, timeout_seconds: float) -> bool:
         try:
             logger.trace(
-                f'{self.context.log_header} wait leader heartbeat.')
+                f'{self.context} wait leader heartbeat.')
             wait_for_leader = asyncio.create_task(
                 self.event.wait(), name='wait_for_leader')
 
@@ -58,14 +58,14 @@ class RaftActor(object):
 
             await wait_for_leader  # type: str
             self.event.clear()
-            logger.debug(f'{self.context.log_header} heartbeat received.')
+            logger.debug(f'{self.context} heartbeat received.')
 
         except asyncio.exceptions.CancelledError:
             if timer.cancelled():
                 # when CancelledError is not raised from timer,
                 # cancel timer and propagates CancelledError to
                 # outside for stopping loop.
-                logger.trace(f'{self.context.log_header} stop timer.')
+                logger.trace(f'{self.context} stop timer.')
                 raise
 
             raise LeaderTimeoutError()
@@ -78,43 +78,43 @@ class RaftActor(object):
         follower only respond to leader healthcheck.
         """
 
-        logger.info(f'{self.context.log_header} run as {STATE_FOLLOWER} state')
+        logger.info(f'{self.context} run as {STATE_FOLLOWER} state')
 
         while self.context._state == STATE_FOLLOWER:
             logger.debug((
-                f'{self.context.log_header} waiting heartbeat'
+                f'{self.context} waiting heartbeat'
                 f' [{self.leader_timeout=}s]'
             ))
 
             try:
                 await self._wait_for_leader(self.leader_timeout)
-                logger.debug(f'{self.context.log_header} heartbeat received.')
+                logger.debug(f'{self.context} heartbeat received.')
                 continue
 
             except LeaderTimeoutError:
-                logger.warn(f'{self.context.log_header} leader timeout.')
+                logger.warn(f'{self.context} leader timeout.')
 
             try:
                 election_timeout = random.uniform(
                     0, self.election_timeout_jitter)
                 logger.warn((
-                    f'{self.context.log_header} wait for election timeout.',
+                    f'{self.context} wait for election timeout.',
                     f' [{election_timeout=}]'
                 ))
                 await self._wait_for_leader(election_timeout)
                 continue
 
             except LeaderTimeoutError:
-                logger.warn(f'{self.context.log_header} election timeout.')
+                logger.warn(f'{self.context} election timeout.')
                 await self.context.promote_to_candidate()
 
     async def _act_as_candidate(self) -> None:
         logger.info(
-            f'{self.context.log_header} run as {STATE_CANDIDATE} state')
+            f'{self.context} run as {STATE_CANDIDATE} state')
 
         while self.context._state == STATE_CANDIDATE:
             logger.debug((
-                f'{self.context.log_header} sending vote requests.'
+                f'{self.context} sending vote requests.'
                 f' [{self.vote_interval=}s]'
             ))
             messages = await broadcast(
@@ -128,12 +128,12 @@ class RaftActor(object):
                 # exit candidate loop
                 break
 
-            logger.warn(f'{self.context.log_header} wait for the next vote')
+            logger.warn(f'{self.context} wait for the next vote')
 
             await asyncio.sleep(self.vote_interval)
 
     async def _act_as_leader(self) -> None:
-        logger.info(f'{self.context.log_header} run as {STATE_LEADER} state')
+        logger.info(f'{self.context} run as {STATE_LEADER} state')
 
         while self.context._state == STATE_LEADER:
             await self.send_heartbeats_to_peers()
@@ -141,20 +141,20 @@ class RaftActor(object):
 
     async def send_heartbeats_to_peers(self) -> List[str]:
         logger.debug((
-            f'{self.context.log_header} sending heartbeats.'
+            f'{self.context} sending heartbeats.'
             f' [{self.heartbeat_interval=}s]'
         ))
         responses = await broadcast(
             self.context._peers,
             f'heartbeat {self.context._term} {self.context._name}'
         )  # type: List[str]
-        logger.debug(f'{self.context.log_header} [{responses=}]')
+        logger.debug(f'{self.context} [{responses=}]')
 
         return responses
 
     def create_worker(self) -> Any:
         async def run_worker() -> None:
-            logger.info(f'{self.context.log_header} start raft worker')
+            logger.info(f'{self.context} start raft worker')
 
             while True:
                 try:
@@ -163,11 +163,11 @@ class RaftActor(object):
                     await self._act_as_leader()
 
                 except asyncio.exceptions.CancelledError:
-                    logger.trace(f'{self.context.log_header} stop worker')
+                    logger.trace(f'{self.context} stop worker')
 
                     # TODO: Add stopping process
                     break
 
-            logger.info(f'{self.context.log_header} worker stopped')
+            logger.info(f'{self.context} worker stopped')
 
         return run_worker()
