@@ -60,27 +60,28 @@ class RaftStateMachine(StateMachine):
         self._state = STATE_LEADER
 
     @StateMachine.synchronized
-    @StateMachine.before_states([STATE_FOLLOWER, STATE_CANDIDATE])
-    def demote_to_follower(self) -> None:
+    def step_down(self) -> None:
         self._state = STATE_FOLLOWER
 
     @StateMachine.synchronized
     def set_leader(self, term: int, leader_name: str) -> None:
+        """Set leader and step-down state
+        """
+
         logger.info(f'new leader elected to [{term=}] [{leader_name=}]')
         self._term = term
         self._leader = leader_name
+        self._state = STATE_FOLLOWER
 
-    @StateMachine.before_states([STATE_FOLLOWER, STATE_CANDIDATE])
     async def heartbeat_from_leader(self, term: int, leader_name: str) -> str:
         """as a follower, ensure mystate is follower
         """
 
-        logger.trace(f'got heartbeat message: {leader_name=}')
+        logger.trace(f'got heartbeat message: {term=} {leader_name=}')
 
         if self._term > term:
             raise TermIsLowerThanCurrent()
 
-        await self.demote_to_follower()
         if self._leader != leader_name:
             await self.set_leader(term, leader_name)
 
