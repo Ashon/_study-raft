@@ -20,28 +20,32 @@ class StateMachine(object):
 
 def threadsafe(fn) -> Callable:
     async def _wrap(self: StateMachine, *args: tuple, **kwargs: dict) -> Any:
-        logger.trace('threadsafe: acquire lock')
+        logger.trace(f'threadsafe [fn={fn.__name__}] acquire lock')
         await self._lock.acquire()
         try:
             return fn(self, *args, **kwargs)
 
         finally:
-            logger.trace('threadsafe: release lock')
+            logger.trace(f'threadsafe [fn={fn.__name__}] release lock')
             self._lock.release()
 
+    _wrap.__name__ = fn.__name__
     return _wrap
 
 
 def before_states(states: List[str]) -> Callable:
     def _decorator(fn: Callable) -> Callable:
         def _wrap(self: StateMachine, *args: tuple, **kwargs: dict) -> Any:
-            logger.trace(
-                f'before_states {fn.__name__=}, {self._state=}, {states=}')
+            logger.trace((
+                f'before_states [fn={fn.__name__}]'
+                f' [state={self._state}] [desired={states}]'))
 
             if self._state not in states:
                 raise WrongStateConditionError()
 
             return fn(self, *args, **kwargs)
+
+        _wrap.__name__ = fn.__name__
         return _wrap
 
     return _decorator

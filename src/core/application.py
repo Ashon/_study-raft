@@ -45,69 +45,82 @@ def prepare_service(name: str, log_level: str,
     return True
 
 
-def start_application(
-        name: str, addr: str, port: int, log_level: str, log_color: bool,
-        data_dir: str, peers: str, leader_timeout: float,
-        election_timeout_jitter: float, vote_interval: float,
-        heartbeat_interval: float, report_interval: float) -> None:
+class Raft(object):
+    _loop: asyncio.BaseEventLoop
+    _event: asyncio.Event
 
-    peer_list = peers.split(',')
-    peer_ip_port_pairs = [
-        peer_ip_port.split(':', 1)[1] for peer_ip_port in peer_list
-        if peer_ip_port.split(':')[0] != name
-    ]
+    _context: RaftStateMachine
+    _tcp_server: RaftTCPServer
+    _actor: RaftActor
 
-    # prepare service
-    prepare_service(name, log_level, log_color, data_dir)
+    _reporter: RaftStateReporter
 
-    loop = asyncio.new_event_loop()
-    event = asyncio.Event()  # type: asyncio.Event
+    def __init__(
+            self, name: str, addr: str, port: int,
+            log_level: str, log_color: bool,
+            data_dir: str, peers: str, leader_timeout: float,
+            election_timeout_jitter: float, vote_interval: float,
+            heartbeat_interval: float, report_interval: float) -> None:
 
-    context = RaftStateMachine(name=name, peers=peer_ip_port_pairs)
+        peer_list = peers.split(',')
+        peer_ip_port_pairs = [
+            peer_ip_port.split(':', 1)[1] for peer_ip_port in peer_list
+            if peer_ip_port.split(':')[0] != name
+        ]
 
-    tcp_server = RaftTCPServer(
-        context=context, event=event, addr=addr, port=port)
+        # prepare service
+        prepare_service(name, log_level, log_color, data_dir)
 
-    actor = RaftActor(
-        context=context, event=event, leader_timeout=leader_timeout,
-        election_timeout_jitter=election_timeout_jitter,
-        vote_interval=vote_interval, heartbeat_interval=heartbeat_interval
-    )
+        self._loop = asyncio.new_event_loop()
+        self._event = asyncio.Event()  # type: asyncio.Event
 
-    reporter = RaftStateReporter(
-        context=context, report_interval=report_interval)
+        self._context = RaftStateMachine(name=name, peers=peer_ip_port_pairs)
 
-    generators = [
-        tcp_server.create_server(),
-        reporter.create_reporter(),
-        actor.create_worker()
-    ]
+        self._tcp_server = RaftTCPServer(
+            context=self._context, event=self._event, addr=addr, port=port)
 
-    for generator in generators:
-        loop.create_task(
-            wrap_awaitable(generator),
-            name=generator.__name__)
+        self._actor = RaftActor(
+            context=self._context, event=self._event,
+            leader_timeout=leader_timeout,
+            election_timeout_jitter=election_timeout_jitter,
+            vote_interval=vote_interval, heartbeat_interval=heartbeat_interval
+        )
 
-    signal.signal(signal.SIGINT, raise_sigint)
-    signal.signal(signal.SIGTERM, raise_sigint)
+        self._reporter = RaftStateReporter(
+            context=self._context, report_interval=report_interval)
 
-    try:
-        logger.trace(f'run event loop [{loop=}]')
-        loop.run_forever()
+        generators = [
+            self._actor.create_worker(),
+            self._tcp_server.create_server(),
+            self._reporter.create_reporter()
+        ]
 
-    except KeyboardInterrupt:
-        pass
+        for generator in generators:
+            self._loop.create_task(
+                wrap_awaitable(generator),
+                name=generator.__name__)
 
-    finally:
-        for task in asyncio.all_tasks(loop):
-            taskname = task.get_name()
-            logger.trace(f'canceling task: {taskname}')
-            task.cancel()
-            logger.trace(f'task canceled: {taskname}')
+    def run(self):
+        signal.signal(signal.SIGINT, raise_sigint)
+        signal.signal(signal.SIGTERM, raise_sigint)
 
-        logger.trace('close event loop')
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
-        logger.trace('event loop closed')
+        try:
+            logger.trace(f'run event loop [{self._loop=}]')
+            self._loop.run_forever()
 
-    logger.info('bye')
+        except KeyboardInterrupt:
+            pass
+
+        finally:
+            for task in asyncio.all_tasks(self._loop):
+                taskname = task.get_name()
+                logger.trace(f'canceling task: {taskname}')
+                task.cancel()
+                logger.trace(f'task canceled: {taskname}')
+
+            logger.trace('close event loop')
+            self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+            self._loop.close()
+            logger.trace('event loop closed')
+
+        logger.info('bye')
