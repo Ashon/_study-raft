@@ -9,9 +9,9 @@ from types import FrameType
 
 import core.logger as logger
 from consensus.raft.state_machine import RaftStateMachine
+from consensus.raft.actor import RaftActor
 from consensus.raft.tcp_server import RaftTCPServer
 from consensus.raft.reporter import RaftStateReporter
-from consensus.raft.actor import RaftActor
 
 
 def raise_sigint(signum: int, frame: Optional[FrameType]) -> None:
@@ -74,31 +74,30 @@ class Raft(object):
         self._loop = asyncio.new_event_loop()
         self._event = asyncio.Event()  # type: asyncio.Event
 
+        # weave components
         self._context = RaftStateMachine(name=name, peers=peer_ip_port_pairs)
-
         self._tcp_server = RaftTCPServer(
             context=self._context, event=self._event, addr=addr, port=port)
-
         self._actor = RaftActor(
             context=self._context, event=self._event,
             leader_timeout=leader_timeout,
             election_timeout_jitter=election_timeout_jitter,
             vote_interval=vote_interval, heartbeat_interval=heartbeat_interval
         )
-
         self._reporter = RaftStateReporter(
             context=self._context, report_interval=report_interval)
 
-        generators = [
+        # prepare awaitable loops, and load to eventloop
+        awaitables = [
             self._actor.create_worker(),
             self._tcp_server.create_server(),
             self._reporter.create_reporter()
         ]
 
-        for generator in generators:
+        for awaitable in awaitables:
             self._loop.create_task(
-                wrap_awaitable(generator),
-                name=generator.__name__)
+                wrap_awaitable(awaitable),
+                name=awaitable.__name__)
 
     def run(self):
         signal.signal(signal.SIGINT, raise_sigint)

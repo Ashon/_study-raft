@@ -6,24 +6,24 @@ from consensus.raft.state_machine import RaftStateMachine
 
 
 class RaftStateReporter(object):
-    context: RaftStateMachine
-    report_interval: float
+    _context: RaftStateMachine
+    _report_interval: float
 
     def __init__(self, context: RaftStateMachine,
                  report_interval: float) -> None:
 
-        self.context = context
-        self.report_interval = report_interval
+        self._context = context
+        self._report_interval = report_interval
 
     def create_reporter(self) -> Any:
         async def run_reporter() -> None:
-            logger.info(f'start state reporter [{self.report_interval=}]')
+            logger.info(f'start state reporter [{self._report_interval=}]')
 
             while True:
                 try:
-                    logger.info(f'report state {self.context}')
+                    logger.info(f'report state {self._context}')
 
-                    await asyncio.sleep(self.report_interval)
+                    await asyncio.sleep(self._report_interval)
 
                 except asyncio.exceptions.CancelledError:
                     logger.trace('stop reporter')

@@ -16,18 +16,18 @@ ERR_LOWER_TERM = 'TERM_IS_LOWER'
 
 
 class RaftTCPServer(object):
-    context: RaftStateMachine
-    event: asyncio.Event
+    _context: RaftStateMachine
+    _event: asyncio.Event
 
-    addr: str
-    port: int
+    _addr: str
+    _port: int
 
     def __init__(self, context: RaftStateMachine,
                  event: asyncio.Event, addr: str, port: int):
-        self.context = context
-        self.event = event
-        self.addr = addr
-        self.port = port
+        self._context = context
+        self._event = event
+        self._addr = addr
+        self._port = port
 
     async def handle_heartbeat(self, term: int, leader_name: str) -> bytes:
         """as a follower, ensure mystate is follower
@@ -39,7 +39,7 @@ class RaftTCPServer(object):
         handler = response_err  # type: Callable
 
         try:
-            message = await self.context.heartbeat_from_leader(
+            message = await self._context.heartbeat_from_leader(
                 term, leader_name)
             handler = response_ok
 
@@ -50,7 +50,7 @@ class RaftTCPServer(object):
             message = ERR_LOWER_TERM
 
         logger.trace('emit event')
-        self.event.set()
+        self._event.set()
 
         response = handler(message)  # type: bytes
 
@@ -68,7 +68,7 @@ class RaftTCPServer(object):
         handler = response_err  # type: Callable
 
         try:
-            message = await self.context.vote_from_candidate(
+            message = await self._context.vote_from_candidate(
                 term, candidate_name)
             handler = response_ok
 
@@ -84,7 +84,7 @@ class RaftTCPServer(object):
 
     def create_server(self) -> Any:
         return run_server(
-            name='consensus', addr=self.addr, port=self.port,
+            name='consensus', addr=self._addr, port=self._port,
             commands={
                 'heartbeat': (self.handle_heartbeat, 2),
                 'vote': (self.handle_vote, 2),

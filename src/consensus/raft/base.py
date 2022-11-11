@@ -17,36 +17,40 @@ class StateMachine(object):
         self._state = state
         self._lock = asyncio.Lock()
 
+    @staticmethod
+    def synchronized(fn) -> Callable:
+        """Wraps function with lock for synchronized transaction
+        """
 
-def threadsafe(fn) -> Callable:
-    async def _wrap(self: StateMachine, *args: tuple, **kwargs: dict) -> Any:
-        logger.trace(f'threadsafe [fn={fn.__name__}] acquire lock')
-        await self._lock.acquire()
-        try:
-            return fn(self, *args, **kwargs)
+        async def _wrap(self: StateMachine,
+                        *args: tuple, **kwargs: dict) -> Any:
+            logger.trace(f'synchronized [fn={fn.__name__}] acquire lock')
+            await self._lock.acquire()
+            try:
+                return fn(self, *args, **kwargs)
 
-        finally:
-            logger.trace(f'threadsafe [fn={fn.__name__}] release lock')
-            self._lock.release()
-
-    _wrap.__name__ = fn.__name__
-    return _wrap
-
-
-def before_states(states: List[str]) -> Callable:
-    def _decorator(fn: Callable) -> Callable:
-        def _wrap(self: StateMachine, *args: tuple, **kwargs: dict) -> Any:
-            logger.trace((
-                f'before_states [fn={fn.__name__}]'
-                f' [state={self._state}] [desired={states}]'
-            ))
-
-            if self._state not in states:
-                raise WrongStateConditionError()
-
-            return fn(self, *args, **kwargs)
+            finally:
+                logger.trace(f'synchronized [fn={fn.__name__}] release lock')
+                self._lock.release()
 
         _wrap.__name__ = fn.__name__
         return _wrap
 
-    return _decorator
+    @staticmethod
+    def before_states(states: List[str]) -> Callable:
+        def _decorator(fn: Callable) -> Callable:
+            def _wrap(self: StateMachine, *args: tuple, **kwargs: dict) -> Any:
+                logger.trace((
+                    f'before_states [fn={fn.__name__}]'
+                    f' [state={self._state}] [desired={states}]'
+                ))
+
+                if self._state not in states:
+                    raise WrongStateConditionError()
+
+                return fn(self, *args, **kwargs)
+
+            _wrap.__name__ = fn.__name__
+            return _wrap
+
+        return _decorator
