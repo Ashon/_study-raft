@@ -127,8 +127,6 @@ class RaftActor(object):
             votes = len([m for m in messages if m.startswith('+')])
 
             if votes > 0:
-                # promote to leader
-                self.context._leader = None
                 self.context.promote_to_leader()
                 # exit candidate loop
                 break

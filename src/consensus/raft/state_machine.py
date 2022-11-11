@@ -15,6 +15,14 @@ class StatePromotionError(RuntimeError):
     pass
 
 
+class WrongStateConditionError(RuntimeError):
+    pass
+
+
+class TermIsLowerThanCurrent(RuntimeError):
+    pass
+
+
 class StateMachine(object):
     _state: str
 
@@ -29,7 +37,7 @@ def before_states(states: List[str]) -> Callable:
                 f'before_states {fn.__name__=}, {self._state=}, {states=}')
 
             if self._state not in states:
-                raise StatePromotionError()
+                raise WrongStateConditionError()
 
             return fn(self, *args, **kwargs)
         return _wrap
@@ -44,8 +52,9 @@ class RaftStateMachine(StateMachine):
     _name: str
     _leader: Optional[str]
     _term: int
+    _peers: List[str]
 
-    def __init__(self, name: str, peers: List[Any]):
+    def __init__(self, name: str, peers: List[str]):
 
         # initialized as follower node
         super().__init__(STATE_FOLLOWER)
@@ -83,3 +92,34 @@ class RaftStateMachine(StateMachine):
         logger.info(f'new leader elected to [{term=}] [{leader_name=}]')
         self._term = term
         self._leader = leader_name
+
+    @before_states([STATE_FOLLOWER, STATE_CANDIDATE])
+    def heartbeat_from_leader(self, term: int, leader_name: str) -> str:
+        """as a follower, ensure mystate is follower
+        """
+
+        logger.trace(f'got heartbeat message: {leader_name=}')
+
+        if self._term > term:
+            raise TermIsLowerThanCurrent()
+
+        self.demote_to_follower()
+        if self._leader != leader_name:
+            self.set_leader(term, leader_name)
+
+        return self._name
+
+    @before_states([STATE_FOLLOWER])
+    def vote_from_candidate(self, term: int, candidate_name: str) -> str:
+        """as a follower, response vote message to candidate.
+
+        if leader is not elected, accept voting from candidate.
+        """
+        logger.trace(f'got vote request: {candidate_name=}')
+
+        if self._term > term:
+            raise TermIsLowerThanCurrent()
+
+        self.set_leader(term, candidate_name)
+
+        return self._name

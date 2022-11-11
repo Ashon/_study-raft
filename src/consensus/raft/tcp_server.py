@@ -1,16 +1,17 @@
 import asyncio
 from typing import Any
+from typing import Callable
 
 from core import logger
 from consensus.raft.state_machine import RaftStateMachine
-from consensus.raft.state_machine import STATE_FOLLOWER
-from consensus.raft.state_machine import STATE_CANDIDATE
+from consensus.raft.state_machine import WrongStateConditionError
+from consensus.raft.state_machine import TermIsLowerThanCurrent
 from transport.tcp import run_server
 from transport.tcp import response_ok
 from transport.tcp import response_err
 
 
-ERR_NOT_FOLLOWER = 'NOT_FOLLOWER'
+ERR_WRONG_STATE = 'WRONG_STATE'
 ERR_LOWER_TERM = 'TERM_IS_LOWER'
 
 
@@ -31,24 +32,26 @@ class RaftTCPServer(object):
     def heartbeat_from_leader(self, term: int, leader_name: str) -> bytes:
         """as a follower, ensure mystate is follower
         """
-        logger.trace(f'got heartbeat message: {leader_name=}')
+        logger.trace(f'tcp: handle heartbeat message: {term=} {leader_name=}')
+
         term = int(term)
-        response: bytes
+        message: str
+        handler = response_err  # type: Callable
 
-        if self.context._state not in (STATE_FOLLOWER, STATE_CANDIDATE):
-            response = response_err(ERR_NOT_FOLLOWER)
+        try:
+            message = self.context.heartbeat_from_leader(term, leader_name)
+            handler = response_ok
 
-        if self.context._term > term:
-            response = response_err(ERR_LOWER_TERM)
+        except WrongStateConditionError:
+            message = ERR_WRONG_STATE
 
-        self.context.demote_to_follower()
-        if self.context._leader != leader_name:
-            self.context.set_leader(term, leader_name)
+        except TermIsLowerThanCurrent:
+            message = ERR_LOWER_TERM
 
         logger.trace('emit message to leader waiter queue')
-        self.queue.put_nowait(leader_name)
+        self.queue.put_nowait(message)
 
-        response = response_ok(self.context._name)
+        response = handler(message)  # type: bytes
 
         return response
 
@@ -57,19 +60,23 @@ class RaftTCPServer(object):
 
         if leader is not elected, accept voting from candidate.
         """
-        logger.trace(f'got vote request: {candidate_name=}')
+        logger.trace(f'tcp: got vote request: {term=} {candidate_name=}')
 
         term = int(term)
-        response: bytes
-        if self.context._term > term:
-            response = response_err(ERR_LOWER_TERM)
+        message: str
+        handler = response_err  # type: Callable
 
-        if self.context._state != STATE_FOLLOWER:
-            response = response_err(ERR_NOT_FOLLOWER)
+        try:
+            message = self.context.vote_from_candidate(term, candidate_name)
+            handler = response_ok
 
-        self.context.set_leader(term, candidate_name)
+        except WrongStateConditionError:
+            message = ERR_WRONG_STATE
 
-        response = response_ok(self.context._name)
+        except TermIsLowerThanCurrent:
+            message = ERR_WRONG_STATE
+
+        response = handler(message)  # type: bytes
 
         return response
 

@@ -68,14 +68,14 @@ def start_application(
     tcp_server = RaftTCPServer(
         context=context, queue=queue, addr=addr, port=port)
 
-    reporter = RaftStateReporter(
-        context=context, report_interval=report_interval)
-
     actor = RaftActor(
         context=context, queue=queue, leader_timeout=leader_timeout,
         election_timeout_jitter=election_timeout_jitter,
         vote_interval=vote_interval, heartbeat_interval=heartbeat_interval
     )
+
+    reporter = RaftStateReporter(
+        context=context, report_interval=report_interval)
 
     generators = [
         tcp_server.create_server(),
