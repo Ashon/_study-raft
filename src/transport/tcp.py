@@ -10,6 +10,10 @@ CMD_OK = '+OK'
 CMD_ERR = '-ERR'
 
 
+class ParseMessageError(RuntimeError):
+    pass
+
+
 async def run_server(name: str, addr: str, port: int, commands: dict) -> None:
     logger.info(f'[{name=}] start tcp server')
 
@@ -31,12 +35,17 @@ async def run_server(name: str, addr: str, port: int, commands: dict) -> None:
 
 
 def parse_message(commands: dict, message: str) -> tuple:
-    (cmd, raw_args) = message.split('\n')[0].split(maxsplit=1)
+    try:
+        (cmd, raw_args) = message.split('\n')[0].split(maxsplit=1)
 
-    if method_arg_length := commands.get(cmd):
-        method, length = method_arg_length
+        if method_arg_length := commands.get(cmd):
+            method, length = method_arg_length
 
-    args = raw_args.split(maxsplit=length)
+        args = raw_args.split(maxsplit=length)
+
+    except Exception:
+        logger.error(f'parse message error [{message=}]')
+        raise ParseMessageError()
 
     return method, args
 
@@ -78,6 +87,9 @@ def get_handler(name: str, commands: dict) -> Callable:
                 response = await method(*args)
                 logger.trace(
                     f'[{name}] msg from client {ip}:{port} : {message!r}')
+
+            except ParseMessageError:
+                response = response_err('UNKNOWN_COMMAND')
 
             except Exception as e:
                 response = response_err('UNKNOWN_ERROR')

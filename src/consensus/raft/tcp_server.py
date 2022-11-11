@@ -29,8 +29,7 @@ class RaftTCPServer(object):
         self.addr = addr
         self.port = port
 
-    async def handle_heartbeat(
-            self, term: int, leader_name: str) -> bytes:
+    async def handle_heartbeat(self, term: int, leader_name: str) -> bytes:
         """as a follower, ensure mystate is follower
         """
         logger.trace(f'tcp: handle heartbeat message: {term=} {leader_name=}')
@@ -57,8 +56,7 @@ class RaftTCPServer(object):
 
         return response
 
-    async def handle_vote(
-            self, term: int, candidate_name: str) -> bytes:
+    async def handle_vote(self, term: int, candidate_name: str) -> bytes:
         """as a follower, response vote message to candidate.
 
         if leader is not elected, accept voting from candidate.
