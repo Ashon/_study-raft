@@ -75,14 +75,16 @@ def set_logger(name: str, log_level: str, color: bool) -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
 
+    filter = ContextFilter(None)
+
     logger = logging.getLogger()
     logger.name = name
     logger.setLevel(log_level)
+    logger.addFilter(filter)
     logger.addHandler(handler)
-    _LOG_CONTEXT = ContextFilter(None)
 
-    _LOG.addFilter(_LOG_CONTEXT)
     _LOG = logger
+    _LOG_CONTEXT = filter
 
 
 def set_context(context: object) -> None:
