@@ -1,6 +1,8 @@
 import argparse
 import configparser
 from dataclasses import dataclass
+from typing import Any
+from typing import Mapping
 
 
 @dataclass
@@ -26,19 +28,19 @@ class RaftConfig(object):
     no_color: bool = False
     no_uvloop: bool = False
 
-    def __init__(self):
+    def __init__(self) -> None:
         # config precedence is `cli > envvar > file > defaults`
 
         cli_config = self.config_from_args()
 
-        config_path = cli_config.get('config')
+        config_path = cli_config.get('config')  # type: Any
         file_config = configparser.ConfigParser()
         file_config.read(config_path)
 
         self.override(file_config.defaults())
         self.override(cli_config)
 
-    def override(self, args_dict: dict):
+    def override(self, args_dict: Mapping) -> None:
         for key in self.__dataclass_fields__.keys():
             if value := args_dict.get(key):
                 setattr(self, key, value)
